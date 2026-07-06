@@ -17,6 +17,17 @@ class MainActivity : AppCompatActivity() {
 
     private val permissionRequestCode = 101
 
+    private fun requiredPermissions(): MutableList<String> {
+        val perms = mutableListOf(
+            Manifest.permission.RECORD_AUDIO,
+            Manifest.permission.CALL_PHONE,
+            Manifest.permission.SEND_SMS,
+            Manifest.permission.READ_CONTACTS
+        )
+        if (Build.VERSION.SDK_INT >= 33) perms.add(Manifest.permission.POST_NOTIFICATIONS)
+        return perms
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -52,17 +63,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun hasAllPermissions(): Boolean {
-        val perms = mutableListOf(Manifest.permission.RECORD_AUDIO)
-        if (Build.VERSION.SDK_INT >= 33) perms.add(Manifest.permission.POST_NOTIFICATIONS)
-        return perms.all {
+        return requiredPermissions().all {
             ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
         }
     }
 
     private fun requestPermissions() {
-        val perms = mutableListOf(Manifest.permission.RECORD_AUDIO)
-        if (Build.VERSION.SDK_INT >= 33) perms.add(Manifest.permission.POST_NOTIFICATIONS)
-        ActivityCompat.requestPermissions(this, perms.toTypedArray(), permissionRequestCode)
+        ActivityCompat.requestPermissions(this, requiredPermissions().toTypedArray(), permissionRequestCode)
     }
 
     override fun onRequestPermissionsResult(
@@ -73,7 +80,7 @@ class MainActivity : AppCompatActivity() {
             if (hasAllPermissions()) {
                 Toast.makeText(this, "Permissions granted. Tap Start.", Toast.LENGTH_SHORT).show()
             } else {
-                Toast.makeText(this, "Microphone permission is required for Khushi to work.", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Some permissions were denied — calling, messaging, or contacts features won't work without them.", Toast.LENGTH_LONG).show()
             }
         }
     }
