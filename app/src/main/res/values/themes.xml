@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.Khushi" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#7B2CBF</item>
+        <item name="colorPrimaryDark">#5A189A</item>
+        <item name="colorAccent">#E0AAFF</item>
+    </style>
+</resources>
