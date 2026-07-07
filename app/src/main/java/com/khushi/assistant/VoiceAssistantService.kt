@@ -30,6 +30,7 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
         super.onCreate()
         tts = TextToSpeech(this, this)
         startForeground(notificationId, buildNotification("Khushi is listening..."))
+        OverlayHelper.showOrb(this)
         startListening()
     }
 
@@ -64,9 +65,18 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
     private fun speak(text: String) {
         if (!isTtsReady) return
         tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-            override fun onStart(utteranceId: String?) { pauseListening() }
-            override fun onDone(utteranceId: String?) { resumeListening() }
-            override fun onError(utteranceId: String?) { resumeListening() }
+            override fun onStart(utteranceId: String?) {
+                pauseListening()
+                OverlayHelper.setActive(true)
+            }
+            override fun onDone(utteranceId: String?) {
+                OverlayHelper.setActive(false)
+                resumeListening()
+            }
+            override fun onError(utteranceId: String?) {
+                OverlayHelper.setActive(false)
+                resumeListening()
+            }
         })
         tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "khushi_utterance")
         updateNotification(text)
@@ -88,10 +98,10 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
                 }
 
                 override fun onReadyForSpeech(params: Bundle?) {}
-                override fun onBeginningOfSpeech() {}
+                override fun onBeginningOfSpeech() { OverlayHelper.setActive(true) }
                 override fun onRmsChanged(rmsdB: Float) {}
                 override fun onBufferReceived(buffer: ByteArray?) {}
-                override fun onEndOfSpeech() {}
+                override fun onEndOfSpeech() { OverlayHelper.setActive(false) }
                 override fun onPartialResults(partialResults: Bundle?) {}
                 override fun onEvent(eventType: Int, params: Bundle?) {}
             })
@@ -136,8 +146,7 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
         }
 
         awaitingCommand = false
-        val reply = CommandProcessor.process(this, text)
-        speak(reply)
+        CommandProcessor.process(this, text) { reply -> speak(reply) }
     }
 
     private fun buildNotification(content: String): Notification {
@@ -165,6 +174,7 @@ class VoiceAssistantService : Service(), TextToSpeech.OnInitListener {
         speechRecognizer?.destroy()
         tts.stop()
         tts.shutdown()
+        OverlayHelper.hideOrb(this)
         super.onDestroy()
     }
-}
+} 
