@@ -1,4 +1,4 @@
-  package com.khushi.assistant
+package com.khushi.assistant
 
 import android.Manifest
 import android.content.Context
@@ -17,21 +17,28 @@ object CommandProcessor {
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    private val timeWords = listOf("time", "samay", "baje")
+    private val dateWords = listOf("date", "today", "aaj", "tareek")
+    private val weatherWords = listOf("weather", "mausam")
+    private val newsWords = listOf("news", "headline", "khabar", "samachar")
+    private val callWords = listOf("call", "phone karo", "call karo")
+    private val messageWords = listOf("message", "sms", "text", "sandesh")
+
     fun process(context: Context, spokenText: String, callback: (String) -> Unit) {
         val text = spokenText.lowercase(Locale.ROOT)
 
         when {
-            "time" in text -> {
+            timeWords.any { it in text } -> {
                 val time = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
                 callback("Abhi samay hai $time")
             }
 
-            "date" in text || "today" in text -> {
+            dateWords.any { it in text } -> {
                 val date = SimpleDateFormat("dd MMMM, yyyy", Locale.getDefault()).format(Date())
                 callback("Aaj ki date hai $date")
             }
 
-            "weather" in text || "mausam" in text -> {
+            weatherWords.any { it in text } -> {
                 val city = extractCityFromWeatherQuery(text)
                 thread {
                     val report = WeatherHelper.getWeatherReport(city)
@@ -39,19 +46,19 @@ object CommandProcessor {
                 }
             }
 
-            "news" in text || "headline" in text -> {
+            newsWords.any { it in text } -> {
                 thread {
                     val headlines = NewsHelper.getTopHeadlines()
                     mainHandler.post { callback(headlines) }
                 }
             }
 
-            "call" in text -> {
-                val name = text.substringAfter("call").trim()
+            callWords.any { it in text } -> {
+                val name = extractNameForCall(text)
                 callback(handleCall(context, name))
             }
 
-            "message" in text || "sms" in text || "text" in text -> {
+            messageWords.any { it in text } -> {
                 callback(handleMessage(context, text))
             }
 
@@ -83,6 +90,15 @@ object CommandProcessor {
 
     // ---- Calling ----
 
+    private fun extractNameForCall(text: String): String {
+        // Handles "call Sonu", "Sonu ko call karo", "Sonu ko call"
+        return when {
+            "call" in text && "ko" in text -> text.substringBefore("ko").trim()
+            "call" in text -> text.substringAfter("call").replace("karo", "").trim()
+            else -> text.substringBefore("ko").trim()
+        }
+    }
+
     private fun handleCall(context: Context, spokenName: String): String {
         if (spokenName.isBlank()) return "Kisko call karna hai, naam boliye."
 
@@ -107,7 +123,6 @@ object CommandProcessor {
 
     // ---- SMS ----
     // Expected phrasing: "message <name> that <message body>"
-    // or "message <name> <message body>"
 
     private fun handleMessage(context: Context, text: String): String {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS)
@@ -116,19 +131,25 @@ object CommandProcessor {
             return "Message bhejne ke liye permission nahi mili."
         }
 
-        val afterTrigger = text
-            .substringAfter("message", "")
-            .ifBlank { text.substringAfter("sms", "") }
-            .ifBlank { text.substringAfter("text", "") }
-            .trim()
+        var afterTrigger = text
+        for (word in messageWords) {
+            if (word in afterTrigger) {
+                afterTrigger = afterTrigger.substringAfter(word)
+                break
+            }
+        }
+        afterTrigger = afterTrigger.trim()
 
-        if (afterTrigger.isBlank()) return "Kisko aur kya message bhejna hai, bताiye."
+        if (afterTrigger.isBlank()) return "Kisko aur kya message bhejna hai, bataiye."
 
         val name: String
         val body: String
         if ("that" in afterTrigger) {
             name = afterTrigger.substringBefore("that").trim()
             body = afterTrigger.substringAfter("that").trim()
+        } else if ("ki" in afterTrigger) {
+            name = afterTrigger.substringBefore("ki").trim()
+            body = afterTrigger.substringAfter("ki").trim()
         } else {
             val parts = afterTrigger.split(" ", limit = 2)
             name = parts.getOrElse(0) { "" }
@@ -154,11 +175,8 @@ object CommandProcessor {
     // ---- Helpers ----
 
     private fun extractCityFromWeatherQuery(text: String): String? {
-        val marker = when {
-            " in " in text -> " in "
-            else -> null
-        } ?: return null
-        return text.substringAfter(marker).trim().takeIf { it.isNotBlank() }
+        if (" in " !in text) return null
+        return text.substringAfter(" in ").trim().takeIf { it.isNotBlank() }
     }
 
     private fun launch(context: Context, intent: Intent) {
